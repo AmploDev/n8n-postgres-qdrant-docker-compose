@@ -1,0 +1,72 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: n8n_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n_app
+    ports:
+      - "${N8N_PORT}:5678"
+    environment:
+      TZ: ${TZ}
+      GENERIC_TIMEZONE: ${GENERIC_TIMEZONE}
+      N8N_HOST: ${N8N_HOST}
+      N8N_PORT: ${N8N_PORT}
+      N8N_PROTOCOL: ${N8N_PROTOCOL}
+      WEBHOOK_URL: ${N8N_WEBHOOK_URL}
+      N8N_DIAGNOSTICS_ENABLED: false
+      N8N_SECURE_COOKIE: false
+
+      N8N_BASIC_AUTH_ACTIVE: ${N8N_BASIC_AUTH_ACTIVE}
+      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD}
+      # Heel belangrijk: laat dit KEY vast staan en verander het nooit!
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+
+      # Database
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_USER: ${POSTGRES_USER}
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_POSTGRESDB_DATABASE: ${POSTGRES_DB}
+      DB_POSTGRESDB_SCHEMA: ${POSTGRES_SCHEMA:-public}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # runs as node:node (uid 1000) by default, maar expliciet kan helpen onder WSL
+    user: "1000:1000"
+    volumes:
+      - n8n_data:/home/node/.n8n
+    restart: unless-stopped
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+    ports:
+      - "127.0.0.1:6333:6333" # alleen vanaf de host bereikbaar, niet van buitenaf
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY}
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+
+volumes:
+  pg_data:
+  n8n_data:
+  qdrant_data:
